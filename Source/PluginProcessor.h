@@ -51,7 +51,6 @@ public:
     // Parameter IDs
     static inline const juce::String paramTime{"time"};
     static inline const juce::String paramBlur{"blur"};
-    static inline const juce::String paramResonance{"resonance"};
     static inline const juce::String paramWarp{"warp"};
     static inline const juce::String paramFeedback{"feedback"};
     static inline const juce::String paramMix{"mix"};
@@ -73,7 +72,6 @@ private:
     // Parameter smoothing (to avoid zipper noise)
     juce::SmoothedValue<float> timeSmooth;
     juce::SmoothedValue<float> blurSmooth;
-    juce::SmoothedValue<float> resonanceSmooth;
     juce::SmoothedValue<float> warpSmooth;
     juce::SmoothedValue<float> feedbackSmooth;
     juce::SmoothedValue<float> mixSmooth;

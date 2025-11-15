@@ -48,10 +48,10 @@ public:
     void setGlide(float value);         // Portamento/glide time (0 - 1000ms)
     void setWaveform(float value);      // Waveform selection (0-1 maps to 0-3 index)
 
+    // Output effects (COLOR and FLOAT kept per user request)
     void setMix(float value);           // Dry/Wet blend
-    void setColour(float value);        // Tilt EQ balance
+    void setColour(float value);        // Tilt EQ balance (complementary shelving)
     void setFloat(float value);         // Reverb decay time
-    void setResonance(float value);     // To be removed in Phase 8
 
     int getLatencyInSamples() const { return fftSize; }
 
@@ -144,12 +144,10 @@ private:
     std::atomic<float> currentGlide{0.01f};        // Glide time in seconds (0 - 1.0s)
     std::atomic<float> currentWaveform{0.0f};      // Waveform index (0-1 maps to 0-3)
 
-    // Output effects
+    // Output effects (PHASE 8: COLOR and FLOAT kept, RESONANCE removed)
     std::atomic<float> currentMix{0.5f};
-    std::atomic<float> currentColour{0.5f};        // 0.5 = flat
-    std::atomic<float> currentFloat{0.0f};
-
-    std::atomic<float> currentResonance{0.0f};     // To be removed in Phase 8
+    std::atomic<float> currentColour{0.5f};        // 0.5 = flat (tilt EQ)
+    std::atomic<float> currentFloat{0.0f};         // Reverb amount
 
     double sampleRate = 44100.0;
 

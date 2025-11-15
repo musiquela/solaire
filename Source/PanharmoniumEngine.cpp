@@ -389,11 +389,6 @@ void PanharmoniumEngine::setBlur(float value)
     currentBlur.store(juce::jlimit(0.0f, 1.0f, value));
 }
 
-void PanharmoniumEngine::setResonance(float value)
-{
-    currentResonance.store(juce::jlimit(0.0f, 1.0f, value));
-}
-
 void PanharmoniumEngine::setWarp(float value)
 {
     currentWarp.store(juce::jlimit(0.0f, 1.0f, value));

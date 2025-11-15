@@ -29,10 +29,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout PanharmoniumAudioProcessor::
         juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f));
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        paramResonance, "Resonance",
-        juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f));
-
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
         paramWarp, "Warp",
         juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));  // 0.5 = no warp
 
@@ -77,7 +73,6 @@ void PanharmoniumAudioProcessor::prepareToPlay(double sampleRate, int samplesPer
     const float smoothingTime = 0.05f;  // 50ms
     timeSmooth.reset(sampleRate, smoothingTime);
     blurSmooth.reset(sampleRate, smoothingTime);
-    resonanceSmooth.reset(sampleRate, smoothingTime);
     warpSmooth.reset(sampleRate, smoothingTime);
     feedbackSmooth.reset(sampleRate, smoothingTime);
     mixSmooth.reset(sampleRate, smoothingTime);
@@ -115,7 +110,6 @@ void PanharmoniumAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // Update parameter smoothers from APVTS
     timeSmooth.setTargetValue(apvts.getRawParameterValue(paramTime)->load());
     blurSmooth.setTargetValue(apvts.getRawParameterValue(paramBlur)->load());
-    resonanceSmooth.setTargetValue(apvts.getRawParameterValue(paramResonance)->load());
     warpSmooth.setTargetValue(apvts.getRawParameterValue(paramWarp)->load());
     feedbackSmooth.setTargetValue(apvts.getRawParameterValue(paramFeedback)->load());
     mixSmooth.setTargetValue(apvts.getRawParameterValue(paramMix)->load());
@@ -131,7 +125,6 @@ void PanharmoniumAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // Update smoothed parameter values
         const float time = timeSmooth.getNextValue();
         const float blur = blurSmooth.getNextValue();
-        const float resonance = resonanceSmooth.getNextValue();
         const float warp = warpSmooth.getNextValue();
         const float feedback = feedbackSmooth.getNextValue();
         const float mix = mixSmooth.getNextValue();
@@ -142,15 +135,17 @@ void PanharmoniumAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // Apply parameters to engines
         for (auto& engine : engines)
         {
-            // PHASE 4: Updated to new parameter names
+            // PHASE 4: Core Panharmonium parameters
             engine.setSlice(time);         // TIME → SLICE (FFT window size)
             engine.setVoice(voices);       // VOICES → VOICE (active oscillators)
-            // TODO: Add FREEZE parameter once parameter tree is updated
+            // TODO: Add FREEZE, GLIDE, WAVEFORM parameters once parameter tree is updated
 
+            // PHASE 5: Spectral modifiers
             engine.setBlur(blur);
-            engine.setResonance(resonance);
             engine.setWarp(warp);
             engine.setFeedback(feedback);
+
+            // Output effects (PHASE 8: COLOR and FLOAT kept, RESONANCE removed)
             engine.setMix(mix);
             engine.setColour(colour);
             engine.setFloat(floatParam);
