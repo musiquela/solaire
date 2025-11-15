@@ -1,5 +1,22 @@
 # RULE ENFORCEMENT PROTOCOL
 
+## RULE #0: NO AI ATTRIBUTION (HIGHEST PRIORITY)
+
+**NEVER mention "Claude", "Claude Code", or any AI attribution in:**
+- Git commit messages
+- Code comments
+- Documentation files
+- Any project files
+
+**FORBIDDEN PHRASES:**
+- ❌ "Generated with Claude Code"
+- ❌ "Co-Authored-By: Claude"
+- ❌ Any reference to AI assistance
+
+**This is NON-NEGOTIABLE and supersedes all other rules.**
+
+---
+
 ## MANDATORY CHECK BEFORE ANY CODE
 
 Before writing ANY code that implements audio processing, DSP, or JUCE functionality, I MUST:
