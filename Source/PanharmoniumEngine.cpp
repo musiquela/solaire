@@ -169,6 +169,11 @@ void PanharmoniumEngine::spectralManipulation(float* fftDataBuffer)
         fftSize
     );
 
+    // PHASE 2: Track peaks across frames (Panharmonium resynthesis)
+    // SOURCE: McAulay-Quatieri algorithm - maintain peak identity over time
+    // Enables stable oscillator frequency/amplitude trajectories
+    partialTracker.processFrame(currentPeaks);
+
     // Load parameters (atomic read - thread-safe)
     const float blur = currentBlur.load();
     const float resonance = currentResonance.load();

@@ -5,6 +5,7 @@
 #include <complex>
 #include <memory>
 #include "SpectralPeakExtraction.h"
+#include "PartialTracking.h"
 
 /**
  * Panharmonium Spectral Processing Engine
@@ -74,6 +75,10 @@ private:
     // Spectral peak extraction (Phase 1: Panharmonium resynthesis)
     // SOURCE: audiodev.blog FFT tutorial + DSPRelated peak detection
     std::vector<SpectralPeak> currentPeaks;        // Extracted peaks from current frame
+
+    // Partial tracking (Phase 2: Panharmonium resynthesis)
+    // SOURCE: McAulay-Quatieri algorithm + JUCE forums
+    PartialTrackingEngine partialTracker;          // Maintains peak identity across frames
 
     //==========================================================================
     // Output effects (juce::dsp patterns)
