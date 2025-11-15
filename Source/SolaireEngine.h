@@ -10,19 +10,21 @@
 #include "OscillatorBank.h"
 
 /**
- * Panharmonium Spectral Processing Engine
+ * Solaire Spectral Processing Engine
  *
- * Real-time STFT processor using juce::dsp::FFT with:
- * - 75% overlap-add with Hann window
- * - Spectral manipulation (BLUR, RESONANCE, WARP, FEEDBACK)
+ * Real-time spectral resynthesis engine implementing Rossum Panharmonium architecture:
+ * - FFT analysis with spectral peak extraction (33 peaks)
+ * - Partial tracking (McAulay-Quatieri algorithm)
+ * - Oscillator bank resynthesis (33 independent oscillators)
+ * - Spectral modifiers (BLUR, WARP, FEEDBACK)
  * - Output effects (COLOR tilt EQ, FLOAT reverb, MIX)
  *
  * Thread-safe with SpinLock for prepareToPlay/processBlock race condition protection
  */
-class PanharmoniumEngine
+class SolaireEngine
 {
 public:
-    PanharmoniumEngine();
+    SolaireEngine();
 
     void prepareToPlay(double sampleRate, int samplesPerBlock);
     void releaseResources();
@@ -170,5 +172,5 @@ private:
     // SOURCE: Adapted from verified FFT bin processing patterns
     void applySpectralModifiers(std::vector<PartialTrack>& tracks);
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PanharmoniumEngine)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SolaireEngine)
 };

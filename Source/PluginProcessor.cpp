@@ -1,7 +1,7 @@
 #include "PluginProcessor.h"
 
 //==============================================================================
-PanharmoniumAudioProcessor::PanharmoniumAudioProcessor()
+SolaireAudioProcessor::SolaireAudioProcessor()
     : AudioProcessor(BusesProperties()
                          .withInput("Input", juce::AudioChannelSet::stereo(), true)
                          .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
@@ -9,12 +9,12 @@ PanharmoniumAudioProcessor::PanharmoniumAudioProcessor()
 {
 }
 
-PanharmoniumAudioProcessor::~PanharmoniumAudioProcessor()
+SolaireAudioProcessor::~SolaireAudioProcessor()
 {
 }
 
 //==============================================================================
-juce::AudioProcessorValueTreeState::ParameterLayout PanharmoniumAudioProcessor::createParameterLayout()
+juce::AudioProcessorValueTreeState::ParameterLayout SolaireAudioProcessor::createParameterLayout()
 {
     // APVTS parameter layout (modern JUCE pattern from Context7)
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
@@ -56,7 +56,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout PanharmoniumAudioProcessor::
 }
 
 //==============================================================================
-void PanharmoniumAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
+void SolaireAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     // Report latency to host (CRITICAL - see juce_critical_knowledge.md)
     // This triggers ComponentRestarter which can cause race condition
@@ -81,7 +81,7 @@ void PanharmoniumAudioProcessor::prepareToPlay(double sampleRate, int samplesPer
     voicesSmooth.reset(sampleRate, smoothingTime);
 }
 
-void PanharmoniumAudioProcessor::releaseResources()
+void SolaireAudioProcessor::releaseResources()
 {
     for (auto& engine : engines)
     {
@@ -89,13 +89,13 @@ void PanharmoniumAudioProcessor::releaseResources()
     }
 }
 
-bool PanharmoniumAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
+bool SolaireAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
 {
     // Only stereo supported
     return layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
 }
 
-void PanharmoniumAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
+void SolaireAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                                                juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
@@ -161,18 +161,18 @@ void PanharmoniumAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 }
 
 //==============================================================================
-bool PanharmoniumAudioProcessor::hasEditor() const
+bool SolaireAudioProcessor::hasEditor() const
 {
     return true;  // Use GenericAudioProcessorEditor
 }
 
-juce::AudioProcessorEditor* PanharmoniumAudioProcessor::createEditor()
+juce::AudioProcessorEditor* SolaireAudioProcessor::createEditor()
 {
     return new juce::GenericAudioProcessorEditor(*this);
 }
 
 //==============================================================================
-void PanharmoniumAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
+void SolaireAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
     // Save APVTS state to XML
     auto state = apvts.copyState();
@@ -180,7 +180,7 @@ void PanharmoniumAudioProcessor::getStateInformation(juce::MemoryBlock& destData
     copyXmlToBinary(*xml, destData);
 }
 
-void PanharmoniumAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
+void SolaireAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
 {
     // Load APVTS state from XML
     std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
@@ -193,51 +193,51 @@ void PanharmoniumAudioProcessor::setStateInformation(const void* data, int sizeI
 //==============================================================================
 // Boilerplate implementations
 
-const juce::String PanharmoniumAudioProcessor::getName() const
+const juce::String SolaireAudioProcessor::getName() const
 {
     return JucePlugin_Name;
 }
 
-bool PanharmoniumAudioProcessor::acceptsMidi() const
+bool SolaireAudioProcessor::acceptsMidi() const
 {
     return false;
 }
 
-bool PanharmoniumAudioProcessor::producesMidi() const
+bool SolaireAudioProcessor::producesMidi() const
 {
     return false;
 }
 
-bool PanharmoniumAudioProcessor::isMidiEffect() const
+bool SolaireAudioProcessor::isMidiEffect() const
 {
     return false;
 }
 
-double PanharmoniumAudioProcessor::getTailLengthSeconds() const
+double SolaireAudioProcessor::getTailLengthSeconds() const
 {
     return 0.0;
 }
 
-int PanharmoniumAudioProcessor::getNumPrograms()
+int SolaireAudioProcessor::getNumPrograms()
 {
     return 1;
 }
 
-int PanharmoniumAudioProcessor::getCurrentProgram()
+int SolaireAudioProcessor::getCurrentProgram()
 {
     return 0;
 }
 
-void PanharmoniumAudioProcessor::setCurrentProgram(int index)
+void SolaireAudioProcessor::setCurrentProgram(int index)
 {
 }
 
-const juce::String PanharmoniumAudioProcessor::getProgramName(int index)
+const juce::String SolaireAudioProcessor::getProgramName(int index)
 {
     return {};
 }
 
-void PanharmoniumAudioProcessor::changeProgramName(int index, const juce::String& newName)
+void SolaireAudioProcessor::changeProgramName(int index, const juce::String& newName)
 {
 }
 
@@ -246,5 +246,5 @@ void PanharmoniumAudioProcessor::changeProgramName(int index, const juce::String
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new PanharmoniumAudioProcessor();
+    return new SolaireAudioProcessor();
 }

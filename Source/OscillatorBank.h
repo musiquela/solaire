@@ -5,11 +5,11 @@
 #include <array>
 
 /**
- * Oscillator Bank for Panharmonium Spectral Resynthesis
+ * Oscillator Bank for Solaire Spectral Resynthesis
  *
- * Implements 33 independent sine oscillators for additive synthesis from
- * tracked spectral partials. Each oscillator follows the frequency/amplitude
- * trajectory of its assigned partial track.
+ * Implements 33 independent oscillators for additive synthesis from
+ * tracked spectral partials (Rossum Panharmonium architecture).
+ * Each oscillator follows the frequency/amplitude trajectory of its assigned partial track.
  *
  * SOURCES:
  * - JUCE DSP Tutorial: juce::dsp::Oscillator<Type> usage patterns
@@ -23,10 +23,10 @@
  * SOURCE: JUCE DSP Tutorial - juce::dsp::Oscillator basic usage
  * Pattern: prepare() → setFrequency() → processSample()
  */
-class PanharmoniumVoice
+class SolaireVoice
 {
 public:
-    PanharmoniumVoice()
+    SolaireVoice()
     {
         // Initialize oscillator with sine wave
         // SOURCE: JUCE DSP Tutorial - Oscillator initialization pattern
@@ -282,7 +282,7 @@ public:
 
 private:
     // SOURCE: JUCE forum - std::array for fixed oscillator count
-    std::array<PanharmoniumVoice, NUM_VOICES> voices;
+    std::array<SolaireVoice, NUM_VOICES> voices;
     float outputGain = 1.0f;
 };
 

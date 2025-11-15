@@ -2,19 +2,19 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
-#include "PanharmoniumEngine.h"
+#include "SolaireEngine.h"
 
 /**
- * Panharmonium Audio Processor
+ * Solaire Audio Processor
  *
- * JUCE plugin wrapper for the PanharmoniumEngine spectral processor
+ * JUCE plugin wrapper for the SolaireEngine spectral processor
  * Uses AudioProcessorValueTreeState for parameter management
  */
-class PanharmoniumAudioProcessor : public juce::AudioProcessor
+class SolaireAudioProcessor : public juce::AudioProcessor
 {
 public:
-    PanharmoniumAudioProcessor();
-    ~PanharmoniumAudioProcessor() override;
+    SolaireAudioProcessor();
+    ~SolaireAudioProcessor() override;
 
     //==============================================================================
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
@@ -67,7 +67,7 @@ private:
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
     // DSP engines (stereo = 2 instances)
-    std::array<PanharmoniumEngine, 2> engines;
+    std::array<SolaireEngine, 2> engines;
 
     // Parameter smoothing (to avoid zipper noise)
     juce::SmoothedValue<float> timeSmooth;
@@ -79,5 +79,5 @@ private:
     juce::SmoothedValue<float> floatSmooth;
     juce::SmoothedValue<float> voicesSmooth;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PanharmoniumAudioProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SolaireAudioProcessor)
 };

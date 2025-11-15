@@ -1,12 +1,12 @@
-#include "PanharmoniumEngine.h"
+#include "SolaireEngine.h"
 
-PanharmoniumEngine::PanharmoniumEngine()
+SolaireEngine::SolaireEngine()
 {
     // Constructor - FFT initialization (audiodev.blog pattern)
     // Note: Actual allocation happens in prepareToPlay to avoid race conditions
 }
 
-void PanharmoniumEngine::prepareToPlay(double newSampleRate, int samplesPerBlock)
+void SolaireEngine::prepareToPlay(double newSampleRate, int samplesPerBlock)
 {
     // CRITICAL: SpinLock guard for prepareToPlay/processBlock race condition
     // See .claude/juce_critical_knowledge.md - Nuendo can call this during processing
@@ -41,13 +41,13 @@ void PanharmoniumEngine::prepareToPlay(double newSampleRate, int samplesPerBlock
     reset();
 }
 
-void PanharmoniumEngine::releaseResources()
+void SolaireEngine::releaseResources()
 {
     const juce::SpinLock::ScopedLockType lock(processingLock);
     // Resources released via unique_ptr destructors
 }
 
-void PanharmoniumEngine::updateFFTSize(int newOrder)
+void SolaireEngine::updateFFTSize(int newOrder)
 {
     // PHASE 4: Dynamic FFT size update (SLICE parameter)
     // SOURCE: JUCE dsp::Convolution pattern - reset unique_ptr to change FFT size
@@ -83,7 +83,7 @@ void PanharmoniumEngine::updateFFTSize(int newOrder)
     dryBufferPos = 0;
 }
 
-void PanharmoniumEngine::reset()
+void SolaireEngine::reset()
 {
     // Zero out FIFOs and state arrays (audiodev.blog pattern)
     fifoPos = 0;
@@ -106,7 +106,7 @@ void PanharmoniumEngine::reset()
     feedbackAmplitudes.clear();
 }
 
-float PanharmoniumEngine::processSample(float inputSample)
+float SolaireEngine::processSample(float inputSample)
 {
     // CRITICAL: TryLock - skip processing if prepareToPlay is running
     const juce::SpinLock::ScopedTryLockType lock(processingLock);
@@ -141,7 +141,7 @@ float PanharmoniumEngine::processSample(float inputSample)
     return outputSample;
 }
 
-void PanharmoniumEngine::processFrame()
+void SolaireEngine::processFrame()
 {
     // audiodev.blog STFT pattern: Copy FIFO to FFT buffer
     // Handle circular buffer wrap-around in two parts
@@ -192,7 +192,7 @@ void PanharmoniumEngine::processFrame()
     // NOTE: IFFT and overlap-add removed - now using oscillator bank synthesis
 }
 
-void PanharmoniumEngine::spectralManipulation(float* fftDataBuffer)
+void SolaireEngine::spectralManipulation(float* fftDataBuffer)
 {
     // PHASE 4: FREEZE parameter - gate spectral analysis
     // SOURCE: Simple boolean gate pattern (standard DSP technique)
@@ -220,7 +220,7 @@ void PanharmoniumEngine::spectralManipulation(float* fftDataBuffer)
     // When frozen, partials keep their last tracked values (oscillators continue)
 }
 
-void PanharmoniumEngine::applySpectralModifiers(std::vector<PartialTrack>& tracks)
+void SolaireEngine::applySpectralModifiers(std::vector<PartialTrack>& tracks)
 {
     // PHASE 5 & 6: Apply spectral modifiers to partial tracks
     // SOURCE: Adapted from verified FFT bin processing patterns (Perplexity 95%+)
@@ -312,7 +312,7 @@ void PanharmoniumEngine::applySpectralModifiers(std::vector<PartialTrack>& track
     }
 }
 
-void PanharmoniumEngine::applyOutputEffects(float& sample)
+void SolaireEngine::applyOutputEffects(float& sample)
 {
     // Load parameters
     const float colour = currentColour.load();
@@ -357,7 +357,7 @@ void PanharmoniumEngine::applyOutputEffects(float& sample)
 // Parameter setters
 
 // PHASE 4: Core Panharmonium parameters
-void PanharmoniumEngine::setSlice(float value)
+void SolaireEngine::setSlice(float value)
 {
     // SOURCE: Rossum Panharmonium - logarithmic SLICE control (17ms - 6400ms)
     // Convert 0-1 to logarithmic FFT size range
@@ -384,44 +384,44 @@ void PanharmoniumEngine::setSlice(float value)
     }
 }
 
-void PanharmoniumEngine::setBlur(float value)
+void SolaireEngine::setBlur(float value)
 {
     currentBlur.store(juce::jlimit(0.0f, 1.0f, value));
 }
 
-void PanharmoniumEngine::setWarp(float value)
+void SolaireEngine::setWarp(float value)
 {
     currentWarp.store(juce::jlimit(0.0f, 1.0f, value));
 }
 
-void PanharmoniumEngine::setFeedback(float value)
+void SolaireEngine::setFeedback(float value)
 {
     currentFeedback.store(juce::jlimit(0.0f, 1.0f, value));
 }
 
-void PanharmoniumEngine::setMix(float value)
+void SolaireEngine::setMix(float value)
 {
     currentMix.store(juce::jlimit(0.0f, 1.0f, value));
 }
 
-void PanharmoniumEngine::setColour(float value)
+void SolaireEngine::setColour(float value)
 {
     currentColour.store(juce::jlimit(0.0f, 1.0f, value));
 }
 
-void PanharmoniumEngine::setFloat(float value)
+void SolaireEngine::setFloat(float value)
 {
     currentFloat.store(juce::jlimit(0.0f, 1.0f, value));
 }
 
-void PanharmoniumEngine::setVoice(float value)
+void SolaireEngine::setVoice(float value)
 {
     // PHASE 4: VOICE parameter (1-33 active oscillators)
     // SOURCE: Simple atomic store (standard C++ pattern)
     currentVoice.store(juce::jlimit(0.0f, 1.0f, value));
 }
 
-void PanharmoniumEngine::setFreeze(float value)
+void SolaireEngine::setFreeze(float value)
 {
     // PHASE 4: FREEZE parameter (spectral freeze on/off)
     // SOURCE: Boolean gate pattern (standard DSP technique)
@@ -429,28 +429,28 @@ void PanharmoniumEngine::setFreeze(float value)
 }
 
 // PHASE 6: Frequency control parameter setters
-void PanharmoniumEngine::setCenterFreq(float value)
+void SolaireEngine::setCenterFreq(float value)
 {
     // Center frequency of spectral window (20Hz - 20kHz, logarithmic)
     // SOURCE: Simple atomic store (standard C++ pattern)
     currentCenterFreq.store(juce::jlimit(0.0f, 1.0f, value));
 }
 
-void PanharmoniumEngine::setBandwidth(float value)
+void SolaireEngine::setBandwidth(float value)
 {
     // Bandwidth of spectral window (narrow to full spectrum)
     // SOURCE: Simple atomic store (standard C++ pattern)
     currentBandwidth.store(juce::jlimit(0.0f, 1.0f, value));
 }
 
-void PanharmoniumEngine::setFreq(float value)
+void SolaireEngine::setFreq(float value)
 {
     // Fine frequency shift (-100 to +100 cents)
     // SOURCE: Simple atomic store (standard C++ pattern)
     currentFreq.store(juce::jlimit(0.0f, 1.0f, value));
 }
 
-void PanharmoniumEngine::setOctave(float value)
+void SolaireEngine::setOctave(float value)
 {
     // Octave transposition (-2 to +2 octaves)
     // SOURCE: Simple atomic store (standard C++ pattern)
@@ -458,7 +458,7 @@ void PanharmoniumEngine::setOctave(float value)
 }
 
 // PHASE 7: Glide and waveform parameter setters
-void PanharmoniumEngine::setGlide(float value)
+void SolaireEngine::setGlide(float value)
 {
     // Glide/portamento time (0 - 1000ms)
     // SOURCE: Simple atomic store, mapped to seconds for juce::SmoothedValue
@@ -469,7 +469,7 @@ void PanharmoniumEngine::setGlide(float value)
     currentGlide.store(glideSeconds);
 }
 
-void PanharmoniumEngine::setWaveform(float value)
+void SolaireEngine::setWaveform(float value)
 {
     // Waveform selection (0-1 maps to 0-3 index)
     // 0 = sine, 1 = triangle, 2 = saw, 3 = square
