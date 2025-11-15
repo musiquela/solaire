@@ -186,6 +186,7 @@ void PanharmoniumEngine::spectralManipulation(float* fftDataBuffer)
         // EFFECT 2: RESONANCE (Spectral filter - Gaussian magnitude shaping)
         // SOURCE: Standard spectral EQ technique, documented in juce_spectral_effects_patterns.md
         // Applies a peaked gain curve in frequency domain
+        // FIX: Use multiplicative boost clamped to prevent self-oscillation
         if (resonance > 0.0f)
         {
             const float centerFreq = 0.2f;  // Normalized frequency (0-1)
@@ -195,7 +196,9 @@ void PanharmoniumEngine::spectralManipulation(float* fftDataBuffer)
 
             // Gaussian-shaped resonance peak
             const float filterGain = std::exp(-distance * distance / (2.0f * bandwidth * bandwidth));
-            magnitude *= (1.0f + resonance * 2.0f * filterGain);
+            // Use resonance as dry/wet mix instead of gain multiplier to prevent runaway
+            const float boostedMag = magnitude * (1.0f + 10.0f * filterGain);
+            magnitude = magnitude * (1.0f - resonance) + boostedMag * resonance;
         }
 
         // EFFECT 3: WARP (Phase modification)
@@ -205,7 +208,7 @@ void PanharmoniumEngine::spectralManipulation(float* fftDataBuffer)
         // It's a simpler phase manipulation that creates frequency shift effects
         if (warp != 0.5f)
         {
-            const float warpAmount = (warp - 0.5f) * 2.0f;  // Map 0-1 to -1 to +1
+            const float warpAmount = (warp - 0.5f) * 10.0f;  // Map 0-1 to -5 to +5 (increased intensity)
             const float freqRatio = static_cast<float>(i) / static_cast<float>(numBins);
             phase += warpAmount * freqRatio * juce::MathConstants<float>::pi;
         }
@@ -216,7 +219,8 @@ void PanharmoniumEngine::spectralManipulation(float* fftDataBuffer)
         // Mix current magnitude with previous frame's magnitude
         if (feedback > 0.0f)
         {
-            magnitude = magnitude * (1.0f - feedback * 0.5f) + feedbackMagnitude[i] * (feedback * 0.5f);
+            // Increased feedback intensity from 0.5 to 0.9 for more audible effect
+            magnitude = magnitude * (1.0f - feedback * 0.9f) + feedbackMagnitude[i] * (feedback * 0.9f);
         }
 
         // Store state for next frame
