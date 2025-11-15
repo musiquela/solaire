@@ -166,13 +166,22 @@ void PanharmoniumEngine::processFrame()
     // SPECTRAL ANALYSIS (Phase 1-2: peak extraction & tracking)
     spectralManipulation(fftPtr);
 
-    // Phase 3, 4 & 5: Update oscillator bank from tracked partials
+    // Phase 3, 4, 5, 6 & 7: Update oscillator bank from tracked partials
     // SOURCE: Custom logic using JUCE patterns
     // Replaces IFFT reconstruction - oscillators generate audio directly
     auto activeTracks = partialTracker.getActiveTracks();  // Copy for modification
 
-    // PHASE 5: Apply spectral modifiers to partial tracks
+    // PHASE 5 & 6: Apply spectral modifiers to partial tracks
     applySpectralModifiers(activeTracks);
+
+    // PHASE 7: Update oscillator bank glide and waveform settings
+    // SOURCE: JUCE SmoothedValue and Oscillator::initialise patterns
+    const float glideTime = currentGlide.load();
+    const float waveformParam = currentWaveform.load();
+    const int waveformIndex = static_cast<int>(waveformParam * 3.0f);  // 0-1 maps to 0-3
+
+    oscillatorBank.setGlideTime(glideTime);
+    oscillatorBank.setWaveform(waveformIndex);
 
     // PHASE 4: VOICE parameter - limit active oscillators
     // SOURCE: Simple loop control (standard C++ pattern)
@@ -451,4 +460,24 @@ void PanharmoniumEngine::setOctave(float value)
     // Octave transposition (-2 to +2 octaves)
     // SOURCE: Simple atomic store (standard C++ pattern)
     currentOctave.store(juce::jlimit(0.0f, 1.0f, value));
+}
+
+// PHASE 7: Glide and waveform parameter setters
+void PanharmoniumEngine::setGlide(float value)
+{
+    // Glide/portamento time (0 - 1000ms)
+    // SOURCE: Simple atomic store, mapped to seconds for juce::SmoothedValue
+    value = juce::jlimit(0.0f, 1.0f, value);
+    // Map 0-1 to 0-1000ms, convert to seconds
+    const float glideMs = value * 1000.0f;
+    const float glideSeconds = glideMs / 1000.0f;
+    currentGlide.store(glideSeconds);
+}
+
+void PanharmoniumEngine::setWaveform(float value)
+{
+    // Waveform selection (0-1 maps to 0-3 index)
+    // 0 = sine, 1 = triangle, 2 = saw, 3 = square
+    // SOURCE: Simple atomic store (standard C++ pattern)
+    currentWaveform.store(juce::jlimit(0.0f, 1.0f, value));
 }

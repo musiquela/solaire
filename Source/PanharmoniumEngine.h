@@ -44,6 +44,10 @@ public:
     void setFreq(float value);          // Fine frequency shift (-100 to +100 cents)
     void setOctave(float value);        // Octave transposition (-2 to +2 octaves)
 
+    // PHASE 7: Glide and waveform selection
+    void setGlide(float value);         // Portamento/glide time (0 - 1000ms)
+    void setWaveform(float value);      // Waveform selection (0-1 maps to 0-3 index)
+
     void setMix(float value);           // Dry/Wet blend
     void setColour(float value);        // Tilt EQ balance
     void setFloat(float value);         // Reverb decay time
@@ -135,6 +139,10 @@ private:
     std::atomic<float> currentBandwidth{1.0f};     // Bandwidth (0 = narrow, 1 = full spectrum)
     std::atomic<float> currentFreq{0.5f};          // Fine frequency shift (0.5 = no shift)
     std::atomic<float> currentOctave{0.5f};        // Octave shift (0.5 = no shift, 0-1 = -2 to +2)
+
+    // PHASE 7: Glide and waveform
+    std::atomic<float> currentGlide{0.01f};        // Glide time in seconds (0 - 1.0s)
+    std::atomic<float> currentWaveform{0.0f};      // Waveform index (0-1 maps to 0-3)
 
     // Output effects
     std::atomic<float> currentMix{0.5f};

@@ -31,6 +31,7 @@ public:
         // Initialize oscillator with sine wave
         // SOURCE: JUCE DSP Tutorial - Oscillator initialization pattern
         oscillator.initialise([](float x) { return std::sin(x); }, 128);
+        currentWaveform = 0;  // Sine
     }
 
     void prepare(const juce::dsp::ProcessSpec& spec)
@@ -39,10 +40,62 @@ public:
         oscillator.prepare(spec);
         sampleRate = spec.sampleRate;
 
-        // Smoothing for frequency and amplitude changes
+        // PHASE 7: Default smoothing time (will be overridden by setGlideTime)
         // SOURCE: JUCE SmoothedValue tutorial - avoiding clicks/pops
-        frequencySmooth.reset(sampleRate, 0.01);  // 10ms smoothing
-        amplitudeSmooth.reset(sampleRate, 0.01);
+        frequencySmooth.reset(sampleRate, 0.01);  // 10ms default
+        amplitudeSmooth.reset(sampleRate, 0.01);  // 10ms fixed for amplitude
+    }
+
+    // PHASE 7: Set glide time for frequency smoothing
+    // SOURCE: JUCE SmoothedValue::reset() - adjustable smoothing time
+    void setGlideTime(float glideTimeSeconds)
+    {
+        frequencySmooth.reset(sampleRate, glideTimeSeconds);
+    }
+
+    // PHASE 7: Set oscillator waveform
+    // SOURCE: JUCE DSP Tutorial - Oscillator::initialise() with different functions
+    void setWaveform(int waveformIndex)
+    {
+        if (waveformIndex == currentWaveform)
+            return;  // No change needed
+
+        currentWaveform = waveformIndex;
+
+        // Waveform functions from JUCE DSP examples
+        switch (waveformIndex)
+        {
+            case 0:  // Sine
+                oscillator.initialise([](float x) { return std::sin(x); }, 128);
+                break;
+
+            case 1:  // Triangle
+                // SOURCE: JUCE DSP Tutorial - triangle wave formula
+                oscillator.initialise([](float x) {
+                    return (2.0f / juce::MathConstants<float>::pi) * std::asin(std::sin(x));
+                }, 128);
+                break;
+
+            case 2:  // Saw
+                // SOURCE: JUCE DSP Tutorial - sawtooth wave formula
+                oscillator.initialise([](float x) {
+                    return (2.0f / juce::MathConstants<float>::pi) *
+                           (x - juce::MathConstants<float>::pi);
+                }, 128);
+                break;
+
+            case 3:  // Square
+                // SOURCE: JUCE DSP Tutorial - square wave using sign of sine
+                oscillator.initialise([](float x) {
+                    return std::sin(x) > 0.0f ? 1.0f : -1.0f;
+                }, 128);
+                break;
+
+            default:
+                // Default to sine if invalid index
+                oscillator.initialise([](float x) { return std::sin(x); }, 128);
+                break;
+        }
     }
 
     void reset()
@@ -106,6 +159,7 @@ private:
 
     double sampleRate = 44100.0;
     bool isActive = false;
+    int currentWaveform = 0;  // PHASE 7: Track current waveform (0=sine, 1=tri, 2=saw, 3=square)
 };
 
 /**
@@ -204,6 +258,26 @@ public:
                 ++count;
         }
         return count;
+    }
+
+    // PHASE 7: Set glide time for all voices
+    // SOURCE: JUCE SmoothedValue pattern - adjustable smoothing time
+    void setGlideTime(float glideTimeSeconds)
+    {
+        for (auto& voice : voices)
+        {
+            voice.setGlideTime(glideTimeSeconds);
+        }
+    }
+
+    // PHASE 7: Set waveform for all oscillators
+    // SOURCE: JUCE Oscillator::initialise pattern - waveform switching
+    void setWaveform(int waveformIndex)
+    {
+        for (auto& voice : voices)
+        {
+            voice.setWaveform(waveformIndex);
+        }
     }
 
 private:
