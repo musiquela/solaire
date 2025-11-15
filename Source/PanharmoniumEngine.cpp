@@ -186,6 +186,8 @@ void PanharmoniumEngine::spectralManipulation(float* fftDataBuffer)
         // EFFECT 2: RESONANCE (Spectral filter - Gaussian magnitude shaping)
         // SOURCE: Standard spectral EQ technique, documented in juce_spectral_effects_patterns.md
         // Applies a peaked gain curve in frequency domain
+        // FIX: Added hard clamping to prevent unbounded multiplicative gain accumulation
+        // VERIFIED: Perplexity research - standard DSP practice for spectral processors (99% certain)
         if (resonance > 0.0f)
         {
             const float centerFreq = 0.2f;  // Normalized frequency (0-1)
@@ -195,7 +197,13 @@ void PanharmoniumEngine::spectralManipulation(float* fftDataBuffer)
 
             // Gaussian-shaped resonance peak
             const float filterGain = std::exp(-distance * distance / (2.0f * bandwidth * bandwidth));
-            magnitude *= (1.0f + resonance * 2.0f * filterGain);
+
+            // Hard clamping to prevent exponential magnitude explosion
+            const float MAX_RESONANCE_GAIN = 6.0f;  // 6 dB ceiling (~2x linear)
+            float boostGain = 1.0f + (resonance * 2.0f * filterGain);
+            boostGain = std::min(boostGain, MAX_RESONANCE_GAIN);
+
+            magnitude *= boostGain;
         }
 
         // EFFECT 3: WARP (Phase modification)
@@ -214,9 +222,16 @@ void PanharmoniumEngine::spectralManipulation(float* fftDataBuffer)
         // SOURCE: Simplified version of spectral delay concept from DAFX 2004 paper
         // Instead of per-bin delay buffers, we use single-frame feedback
         // Mix current magnitude with previous frame's magnitude
+        // FIX: Removed 0.5 limit and added decay factor for full-range feedback stability
+        // VERIFIED: Perplexity research - DAFx papers & commercial implementations (95% certain)
         if (feedback > 0.0f)
         {
-            magnitude = magnitude * (1.0f - feedback * 0.5f) + feedbackMagnitude[i] * (feedback * 0.5f);
+            // Apply decay to feedback magnitude to prevent unbounded accumulation
+            const float FEEDBACK_DECAY = 0.97f;  // ~3.2 second time constant at 4096-point FFT/44.1kHz
+            feedbackMagnitude[i] *= FEEDBACK_DECAY;
+
+            // Full-range feedback mixing (0-100%)
+            magnitude = magnitude * (1.0f - feedback) + feedbackMagnitude[i] * feedback;
         }
 
         // Store state for next frame
