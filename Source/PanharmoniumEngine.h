@@ -6,6 +6,7 @@
 #include <memory>
 #include "SpectralPeakExtraction.h"
 #include "PartialTracking.h"
+#include "OscillatorBank.h"
 
 /**
  * Panharmonium Spectral Processing Engine
@@ -79,6 +80,10 @@ private:
     // Partial tracking (Phase 2: Panharmonium resynthesis)
     // SOURCE: McAulay-Quatieri algorithm + JUCE forums
     PartialTrackingEngine partialTracker;          // Maintains peak identity across frames
+
+    // Oscillator bank (Phase 3: Panharmonium resynthesis)
+    // SOURCE: JUCE DSP Tutorial + JUCE forums
+    OscillatorBank oscillatorBank;                 // 33 independent sine oscillators
 
     //==========================================================================
     // Output effects (juce::dsp patterns)
