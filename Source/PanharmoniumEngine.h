@@ -4,6 +4,7 @@
 #include <array>
 #include <complex>
 #include <memory>
+#include <unordered_map>
 #include "SpectralPeakExtraction.h"
 #include "PartialTracking.h"
 #include "OscillatorBank.h"
@@ -95,6 +96,11 @@ private:
     // SOURCE: JUCE DSP Tutorial + JUCE forums
     OscillatorBank oscillatorBank;                 // 33 independent sine oscillators
 
+    // PHASE 5: Spectral modifier state (per-partial tracking)
+    // SOURCE: Adapted from verified FFT bin processing patterns
+    std::unordered_map<int, float> prevPartialAmplitudes;  // For BLUR (trackID → amplitude)
+    std::unordered_map<int, float> feedbackAmplitudes;     // For FEEDBACK (trackID → amplitude)
+
     //==========================================================================
     // Output effects (juce::dsp patterns)
     juce::Reverb reverb;
@@ -136,6 +142,10 @@ private:
     // PHASE 4: Dynamic FFT size management (SLICE parameter)
     // SOURCE: JUCE dsp::Convolution pattern - thread-safe FFT reset
     void updateFFTSize(int newOrder);
+
+    // PHASE 5: Spectral modifier application to partial tracks
+    // SOURCE: Adapted from verified FFT bin processing patterns
+    void applySpectralModifiers(std::vector<PartialTrack>& tracks);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PanharmoniumEngine)
 };

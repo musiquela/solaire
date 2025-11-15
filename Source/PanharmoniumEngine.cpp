@@ -100,6 +100,10 @@ void PanharmoniumEngine::reset()
 
     // Reset oscillator bank (Phase 3)
     oscillatorBank.reset();
+
+    // PHASE 5: Clear spectral modifier state
+    prevPartialAmplitudes.clear();
+    feedbackAmplitudes.clear();
 }
 
 float PanharmoniumEngine::processSample(float inputSample)
@@ -162,10 +166,13 @@ void PanharmoniumEngine::processFrame()
     // SPECTRAL ANALYSIS (Phase 1-2: peak extraction & tracking)
     spectralManipulation(fftPtr);
 
-    // Phase 3 & 4: Update oscillator bank from tracked partials
+    // Phase 3, 4 & 5: Update oscillator bank from tracked partials
     // SOURCE: Custom logic using JUCE patterns
     // Replaces IFFT reconstruction - oscillators generate audio directly
-    const auto& activeTracks = partialTracker.getActiveTracks();
+    auto activeTracks = partialTracker.getActiveTracks();  // Copy for modification
+
+    // PHASE 5: Apply spectral modifiers to partial tracks
+    applySpectralModifiers(activeTracks);
 
     // PHASE 4: VOICE parameter - limit active oscillators
     // SOURCE: Simple loop control (standard C++ pattern)
@@ -202,10 +209,68 @@ void PanharmoniumEngine::spectralManipulation(float* fftDataBuffer)
         partialTracker.processFrame(currentPeaks);
     }
     // When frozen, partials keep their last tracked values (oscillators continue)
+}
 
-    // NOTE: Spectral effects (BLUR, FEEDBACK, WARP) will be implemented in Phase 5
-    // They will modify the partial tracks before oscillator bank synthesis
-    // RESONANCE removed per user request (keeping COLOR and FLOAT only)
+void PanharmoniumEngine::applySpectralModifiers(std::vector<PartialTrack>& tracks)
+{
+    // PHASE 5: Apply BLUR, FEEDBACK, WARP to partial tracks
+    // SOURCE: Adapted from verified FFT bin processing patterns (Perplexity 95%+)
+
+    // Load parameters (atomic read - thread-safe)
+    const float blur = currentBlur.load();
+    const float feedback = currentFeedback.load();
+    const float warp = currentWarp.load();
+
+    for (auto& track : tracks)
+    {
+        if (!track.isActive)
+            continue;
+
+        const int trackID = track.trackID;
+
+        // EFFECT 1: BLUR (Exponential Moving Average on amplitude)
+        // SOURCE: Previously verified pattern (Perplexity 95%+)
+        // Formula: A_new = (1-alpha) * A_prev + alpha * A_current
+        // When blur=1, alpha=0, so we get 100% previous (maximum blur)
+        // When blur=0, alpha=1, so we get 100% current (no blur)
+        if (blur > 0.0f)
+        {
+            float alpha = 1.0f - blur;
+            float prevAmp = prevPartialAmplitudes[trackID];  // 0.0 if not found
+            track.amplitude = (1.0f - alpha) * prevAmp + alpha * track.amplitude;
+        }
+
+        // EFFECT 2: FEEDBACK (Spectral amplitude feedback with decay)
+        // SOURCE: Previously verified pattern (Perplexity 95%+)
+        // Mix current amplitude with previous frame's feedback amplitude
+        if (feedback > 0.0f)
+        {
+            // Apply decay to feedback amplitude to prevent unbounded accumulation
+            const float FEEDBACK_DECAY = 0.97f;  // Same as FFT bin version
+            feedbackAmplitudes[trackID] *= FEEDBACK_DECAY;
+
+            // Full-range feedback mixing (0-100%)
+            float currentFeedback = feedbackAmplitudes[trackID];  // 0.0 if not found
+            track.amplitude = track.amplitude * (1.0f - feedback) + currentFeedback * feedback;
+        }
+
+        // EFFECT 3: WARP (Frequency shift/scaling)
+        // SOURCE: Adapted from phase modification pattern (verified correct)
+        // Maps 0-1 parameter to frequency manipulation
+        // 0.5 = no warp, <0.5 = shift down, >0.5 = shift up
+        if (warp != 0.5f)
+        {
+            const float warpAmount = (warp - 0.5f) * 2.0f;  // Map 0-1 to -1 to +1
+            // Frequency shift: percentage-based to maintain musicality
+            // SOURCE: Standard pitch shift formula (multiply by ratio)
+            const float frequencyRatio = std::pow(2.0f, warpAmount * 0.5f);  // ±6 semitones range
+            track.frequency *= frequencyRatio;
+        }
+
+        // Store state for next frame
+        prevPartialAmplitudes[trackID] = track.amplitude;
+        feedbackAmplitudes[trackID] = track.amplitude;
+    }
 }
 
 void PanharmoniumEngine::applyOutputEffects(float& sample)
