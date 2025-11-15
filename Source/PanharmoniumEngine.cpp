@@ -213,13 +213,41 @@ void PanharmoniumEngine::spectralManipulation(float* fftDataBuffer)
 
 void PanharmoniumEngine::applySpectralModifiers(std::vector<PartialTrack>& tracks)
 {
-    // PHASE 5: Apply BLUR, FEEDBACK, WARP to partial tracks
+    // PHASE 5 & 6: Apply spectral modifiers to partial tracks
     // SOURCE: Adapted from verified FFT bin processing patterns (Perplexity 95%+)
 
     // Load parameters (atomic read - thread-safe)
     const float blur = currentBlur.load();
     const float feedback = currentFeedback.load();
     const float warp = currentWarp.load();
+
+    // PHASE 6: Frequency control parameters
+    const float centerFreq = currentCenterFreq.load();
+    const float bandwidth = currentBandwidth.load();
+    const float freqShift = currentFreq.load();
+    const float octaveShift = currentOctave.load();
+
+    // Calculate frequency window bounds
+    // SOURCE: Logarithmic frequency scaling (standard audio/DSP technique)
+    const float MIN_FREQ = 20.0f;
+    const float MAX_FREQ = 20000.0f;
+    const float centerHz = MIN_FREQ * std::pow(MAX_FREQ / MIN_FREQ, centerFreq);
+
+    // Bandwidth: 0 = narrow (±1 semitone), 1 = full spectrum
+    const float bandwidthSemitones = 1.0f + bandwidth * 59.0f;  // 1 to 60 semitones
+    const float bandwidthRatio = std::pow(2.0f, bandwidthSemitones / 12.0f);
+    const float minFreq = centerHz / std::sqrt(bandwidthRatio);
+    const float maxFreq = centerHz * std::sqrt(bandwidthRatio);
+
+    // Calculate global frequency shift ratios
+    // SOURCE: Standard pitch shift formula (verified in WARP)
+    // FREQ: -100 to +100 cents (-1 to +1 semitones)
+    const float centsShift = (freqShift - 0.5f) * 200.0f;  // Map 0-1 to -100 to +100 cents
+    const float freqRatio = std::pow(2.0f, centsShift / 1200.0f);
+
+    // OCTAVE: -2 to +2 octaves
+    const float octaves = (octaveShift - 0.5f) * 4.0f;  // Map 0-1 to -2 to +2
+    const float octaveRatio = std::pow(2.0f, octaves);
 
     for (auto& track : tracks)
     {
@@ -228,44 +256,46 @@ void PanharmoniumEngine::applySpectralModifiers(std::vector<PartialTrack>& track
 
         const int trackID = track.trackID;
 
+        // PHASE 6: Frequency window filtering (CENTER_FREQ + BANDWIDTH)
+        // SOURCE: Simple range check (standard C++ conditional logic)
+        // Deactivate partials outside the frequency window
+        if (track.frequency < minFreq || track.frequency > maxFreq)
+        {
+            track.isActive = false;
+            continue;  // Skip processing for out-of-range partials
+        }
+
         // EFFECT 1: BLUR (Exponential Moving Average on amplitude)
         // SOURCE: Previously verified pattern (Perplexity 95%+)
-        // Formula: A_new = (1-alpha) * A_prev + alpha * A_current
-        // When blur=1, alpha=0, so we get 100% previous (maximum blur)
-        // When blur=0, alpha=1, so we get 100% current (no blur)
         if (blur > 0.0f)
         {
             float alpha = 1.0f - blur;
-            float prevAmp = prevPartialAmplitudes[trackID];  // 0.0 if not found
+            float prevAmp = prevPartialAmplitudes[trackID];
             track.amplitude = (1.0f - alpha) * prevAmp + alpha * track.amplitude;
         }
 
         // EFFECT 2: FEEDBACK (Spectral amplitude feedback with decay)
         // SOURCE: Previously verified pattern (Perplexity 95%+)
-        // Mix current amplitude with previous frame's feedback amplitude
         if (feedback > 0.0f)
         {
-            // Apply decay to feedback amplitude to prevent unbounded accumulation
-            const float FEEDBACK_DECAY = 0.97f;  // Same as FFT bin version
+            const float FEEDBACK_DECAY = 0.97f;
             feedbackAmplitudes[trackID] *= FEEDBACK_DECAY;
-
-            // Full-range feedback mixing (0-100%)
-            float currentFeedback = feedbackAmplitudes[trackID];  // 0.0 if not found
+            float currentFeedback = feedbackAmplitudes[trackID];
             track.amplitude = track.amplitude * (1.0f - feedback) + currentFeedback * feedback;
         }
 
         // EFFECT 3: WARP (Frequency shift/scaling)
-        // SOURCE: Adapted from phase modification pattern (verified correct)
-        // Maps 0-1 parameter to frequency manipulation
-        // 0.5 = no warp, <0.5 = shift down, >0.5 = shift up
+        // SOURCE: Standard pitch shift formula (verified in Phase 5)
         if (warp != 0.5f)
         {
-            const float warpAmount = (warp - 0.5f) * 2.0f;  // Map 0-1 to -1 to +1
-            // Frequency shift: percentage-based to maintain musicality
-            // SOURCE: Standard pitch shift formula (multiply by ratio)
-            const float frequencyRatio = std::pow(2.0f, warpAmount * 0.5f);  // ±6 semitones range
-            track.frequency *= frequencyRatio;
+            const float warpAmount = (warp - 0.5f) * 2.0f;
+            const float warpRatio = std::pow(2.0f, warpAmount * 0.5f);  // ±6 semitones
+            track.frequency *= warpRatio;
         }
+
+        // PHASE 6: FREQ + OCTAVE (Global frequency transposition)
+        // SOURCE: Standard pitch shift formula (multiply by frequency ratio)
+        track.frequency *= freqRatio * octaveRatio;
 
         // Store state for next frame
         prevPartialAmplitudes[trackID] = track.amplitude;
@@ -392,4 +422,33 @@ void PanharmoniumEngine::setFreeze(float value)
     // PHASE 4: FREEZE parameter (spectral freeze on/off)
     // SOURCE: Boolean gate pattern (standard DSP technique)
     currentFreeze.store(juce::jlimit(0.0f, 1.0f, value));
+}
+
+// PHASE 6: Frequency control parameter setters
+void PanharmoniumEngine::setCenterFreq(float value)
+{
+    // Center frequency of spectral window (20Hz - 20kHz, logarithmic)
+    // SOURCE: Simple atomic store (standard C++ pattern)
+    currentCenterFreq.store(juce::jlimit(0.0f, 1.0f, value));
+}
+
+void PanharmoniumEngine::setBandwidth(float value)
+{
+    // Bandwidth of spectral window (narrow to full spectrum)
+    // SOURCE: Simple atomic store (standard C++ pattern)
+    currentBandwidth.store(juce::jlimit(0.0f, 1.0f, value));
+}
+
+void PanharmoniumEngine::setFreq(float value)
+{
+    // Fine frequency shift (-100 to +100 cents)
+    // SOURCE: Simple atomic store (standard C++ pattern)
+    currentFreq.store(juce::jlimit(0.0f, 1.0f, value));
+}
+
+void PanharmoniumEngine::setOctave(float value)
+{
+    // Octave transposition (-2 to +2 octaves)
+    // SOURCE: Simple atomic store (standard C++ pattern)
+    currentOctave.store(juce::jlimit(0.0f, 1.0f, value));
 }

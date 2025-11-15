@@ -34,13 +34,20 @@ public:
     void setSlice(float value);         // PHASE 4: FFT window size (17ms - 6400ms)
     void setVoice(float value);         // PHASE 4: Active oscillator count (1-33)
     void setFreeze(float value);        // PHASE 4: Spectral freeze on/off
-    void setBlur(float value);          // Spectral smoothing (EMA alpha)
-    void setResonance(float value);     // Spectral filter Q/Gain (to be removed)
-    void setWarp(float value);          // Phase vocoder warp factor
-    void setFeedback(float value);      // Spectral feedback gain
+    void setBlur(float value);          // PHASE 5: Spectral smoothing (EMA alpha)
+    void setWarp(float value);          // PHASE 5: Frequency warp
+    void setFeedback(float value);      // PHASE 5: Spectral feedback gain
+
+    // PHASE 6: Frequency controls
+    void setCenterFreq(float value);    // Center frequency of spectral window
+    void setBandwidth(float value);     // Width of spectral window
+    void setFreq(float value);          // Fine frequency shift (-100 to +100 cents)
+    void setOctave(float value);        // Octave transposition (-2 to +2 octaves)
+
     void setMix(float value);           // Dry/Wet blend
     void setColour(float value);        // Tilt EQ balance
     void setFloat(float value);         // Reverb decay time
+    void setResonance(float value);     // To be removed in Phase 8
 
     int getLatencyInSamples() const { return fftSize; }
 
@@ -118,13 +125,23 @@ private:
     std::atomic<float> currentVoice{1.0f};         // Active oscillator count (1-33)
     std::atomic<float> currentFreeze{0.0f};        // Spectral freeze (0=off, 1=on)
 
+    // PHASE 5: Spectral modifiers
     std::atomic<float> currentBlur{0.0f};
-    std::atomic<float> currentResonance{0.0f};     // To be removed in Phase 8
     std::atomic<float> currentWarp{0.5f};          // 0.5 = no warp
     std::atomic<float> currentFeedback{0.0f};
+
+    // PHASE 6: Frequency controls
+    std::atomic<float> currentCenterFreq{0.5f};    // Center frequency (20Hz - 20kHz, log scale)
+    std::atomic<float> currentBandwidth{1.0f};     // Bandwidth (0 = narrow, 1 = full spectrum)
+    std::atomic<float> currentFreq{0.5f};          // Fine frequency shift (0.5 = no shift)
+    std::atomic<float> currentOctave{0.5f};        // Octave shift (0.5 = no shift, 0-1 = -2 to +2)
+
+    // Output effects
     std::atomic<float> currentMix{0.5f};
     std::atomic<float> currentColour{0.5f};        // 0.5 = flat
     std::atomic<float> currentFloat{0.0f};
+
+    std::atomic<float> currentResonance{0.0f};     // To be removed in Phase 8
 
     double sampleRate = 44100.0;
 
