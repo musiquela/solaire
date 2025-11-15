@@ -1,0 +1,252 @@
+#include "PluginProcessor.h"
+
+//==============================================================================
+PanharmoniumAudioProcessor::PanharmoniumAudioProcessor()
+    : AudioProcessor(BusesProperties()
+                         .withInput("Input", juce::AudioChannelSet::stereo(), true)
+                         .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
+      apvts(*this, nullptr, "Parameters", createParameterLayout())
+{
+}
+
+PanharmoniumAudioProcessor::~PanharmoniumAudioProcessor()
+{
+}
+
+//==============================================================================
+juce::AudioProcessorValueTreeState::ParameterLayout PanharmoniumAudioProcessor::createParameterLayout()
+{
+    // APVTS parameter layout (modern JUCE pattern from Context7)
+    std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+
+    // All parameters normalized to 0.0 - 1.0 range
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        paramTime, "Time",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        paramBlur, "Blur",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        paramResonance, "Resonance",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        paramWarp, "Warp",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));  // 0.5 = no warp
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        paramFeedback, "Feedback",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        paramMix, "Mix",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        paramColour, "Colour",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));  // 0.5 = flat
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        paramFloat, "Float",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        paramVoices, "Voices",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f));  // Placeholder
+
+    return {params.begin(), params.end()};
+}
+
+//==============================================================================
+void PanharmoniumAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
+{
+    // Report latency to host (CRITICAL - see juce_critical_knowledge.md)
+    // This triggers ComponentRestarter which can cause race condition
+    // Both engines protected by internal SpinLock
+    setLatencySamples(engines[0].getLatencyInSamples());
+
+    // Prepare both stereo engines
+    for (auto& engine : engines)
+    {
+        engine.prepareToPlay(sampleRate, samplesPerBlock);
+    }
+
+    // Initialize parameter smoothing (60Hz update rate)
+    const float smoothingTime = 0.05f;  // 50ms
+    timeSmooth.reset(sampleRate, smoothingTime);
+    blurSmooth.reset(sampleRate, smoothingTime);
+    resonanceSmooth.reset(sampleRate, smoothingTime);
+    warpSmooth.reset(sampleRate, smoothingTime);
+    feedbackSmooth.reset(sampleRate, smoothingTime);
+    mixSmooth.reset(sampleRate, smoothingTime);
+    colourSmooth.reset(sampleRate, smoothingTime);
+    floatSmooth.reset(sampleRate, smoothingTime);
+    voicesSmooth.reset(sampleRate, smoothingTime);
+}
+
+void PanharmoniumAudioProcessor::releaseResources()
+{
+    for (auto& engine : engines)
+    {
+        engine.releaseResources();
+    }
+}
+
+bool PanharmoniumAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
+{
+    // Only stereo supported
+    return layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
+}
+
+void PanharmoniumAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
+                                               juce::MidiBuffer& midiMessages)
+{
+    juce::ScopedNoDenormals noDenormals;
+
+    auto totalNumInputChannels = getTotalNumInputChannels();
+    auto totalNumOutputChannels = getTotalNumOutputChannels();
+
+    // Clear unused output channels
+    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
+        buffer.clear(i, 0, buffer.getNumSamples());
+
+    // Update parameter smoothers from APVTS
+    timeSmooth.setTargetValue(apvts.getRawParameterValue(paramTime)->load());
+    blurSmooth.setTargetValue(apvts.getRawParameterValue(paramBlur)->load());
+    resonanceSmooth.setTargetValue(apvts.getRawParameterValue(paramResonance)->load());
+    warpSmooth.setTargetValue(apvts.getRawParameterValue(paramWarp)->load());
+    feedbackSmooth.setTargetValue(apvts.getRawParameterValue(paramFeedback)->load());
+    mixSmooth.setTargetValue(apvts.getRawParameterValue(paramMix)->load());
+    colourSmooth.setTargetValue(apvts.getRawParameterValue(paramColour)->load());
+    floatSmooth.setTargetValue(apvts.getRawParameterValue(paramFloat)->load());
+    voicesSmooth.setTargetValue(apvts.getRawParameterValue(paramVoices)->load());
+
+    // Process each sample
+    const int numSamples = buffer.getNumSamples();
+
+    for (int sample = 0; sample < numSamples; ++sample)
+    {
+        // Update smoothed parameter values
+        const float time = timeSmooth.getNextValue();
+        const float blur = blurSmooth.getNextValue();
+        const float resonance = resonanceSmooth.getNextValue();
+        const float warp = warpSmooth.getNextValue();
+        const float feedback = feedbackSmooth.getNextValue();
+        const float mix = mixSmooth.getNextValue();
+        const float colour = colourSmooth.getNextValue();
+        const float floatParam = floatSmooth.getNextValue();
+        const float voices = voicesSmooth.getNextValue();
+
+        // Apply parameters to engines
+        for (auto& engine : engines)
+        {
+            engine.setTime(time);
+            engine.setBlur(blur);
+            engine.setResonance(resonance);
+            engine.setWarp(warp);
+            engine.setFeedback(feedback);
+            engine.setMix(mix);
+            engine.setColour(colour);
+            engine.setFloat(floatParam);
+            engine.setVoices(voices);
+        }
+
+        // Process stereo channels
+        float* channelL = buffer.getWritePointer(0);
+        float* channelR = buffer.getWritePointer(1);
+
+        channelL[sample] = engines[0].processSample(channelL[sample]);
+        channelR[sample] = engines[1].processSample(channelR[sample]);
+    }
+}
+
+//==============================================================================
+bool PanharmoniumAudioProcessor::hasEditor() const
+{
+    return true;  // Use GenericAudioProcessorEditor
+}
+
+juce::AudioProcessorEditor* PanharmoniumAudioProcessor::createEditor()
+{
+    return new juce::GenericAudioProcessorEditor(*this);
+}
+
+//==============================================================================
+void PanharmoniumAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
+{
+    // Save APVTS state to XML
+    auto state = apvts.copyState();
+    std::unique_ptr<juce::XmlElement> xml(state.createXml());
+    copyXmlToBinary(*xml, destData);
+}
+
+void PanharmoniumAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
+{
+    // Load APVTS state from XML
+    std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
+
+    if (xmlState.get() != nullptr)
+        if (xmlState->hasTagName(apvts.state.getType()))
+            apvts.replaceState(juce::ValueTree::fromXml(*xmlState));
+}
+
+//==============================================================================
+// Boilerplate implementations
+
+const juce::String PanharmoniumAudioProcessor::getName() const
+{
+    return JucePlugin_Name;
+}
+
+bool PanharmoniumAudioProcessor::acceptsMidi() const
+{
+    return false;
+}
+
+bool PanharmoniumAudioProcessor::producesMidi() const
+{
+    return false;
+}
+
+bool PanharmoniumAudioProcessor::isMidiEffect() const
+{
+    return false;
+}
+
+double PanharmoniumAudioProcessor::getTailLengthSeconds() const
+{
+    return 0.0;
+}
+
+int PanharmoniumAudioProcessor::getNumPrograms()
+{
+    return 1;
+}
+
+int PanharmoniumAudioProcessor::getCurrentProgram()
+{
+    return 0;
+}
+
+void PanharmoniumAudioProcessor::setCurrentProgram(int index)
+{
+}
+
+const juce::String PanharmoniumAudioProcessor::getProgramName(int index)
+{
+    return {};
+}
+
+void PanharmoniumAudioProcessor::changeProgramName(int index, const juce::String& newName)
+{
+}
+
+//==============================================================================
+// Plugin instantiation function
+
+juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
+{
+    return new PanharmoniumAudioProcessor();
+}

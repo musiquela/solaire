@@ -1,0 +1,31 @@
+# Build directories
+build/
+builds/
+Builds/
+
+# IDE files
+.vscode/
+.vs/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+*.xcodeproj
+*.xcworkspace
+
+# JUCE artifacts
+JuceLibraryCode/
+
+# Compiled files
+*.o
+*.obj
+*.a
+*.lib
+*.dylib
+*.so
+
+# Test permissions file
+test_permissions.txt
