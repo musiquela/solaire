@@ -158,6 +158,17 @@ void PanharmoniumEngine::spectralManipulation(float* fftDataBuffer)
     // Convert to complex numbers for easier magnitude/phase manipulation
     auto* cdata = reinterpret_cast<std::complex<float>*>(fftDataBuffer);
 
+    // PHASE 1: Extract dominant spectral peaks (Panharmonium resynthesis)
+    // SOURCE: audiodev.blog FFT tutorial + DSPRelated quadratic interpolation
+    // Extract 33 dominant peaks for oscillator bank resynthesis
+    currentPeaks = extractDominantPeaks(
+        fftDataBuffer,
+        numBins,
+        maxSpectralPeaks,
+        sampleRate,
+        fftSize
+    );
+
     // Load parameters (atomic read - thread-safe)
     const float blur = currentBlur.load();
     const float resonance = currentResonance.load();

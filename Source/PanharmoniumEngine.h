@@ -4,6 +4,7 @@
 #include <array>
 #include <complex>
 #include <memory>
+#include "SpectralPeakExtraction.h"
 
 /**
  * Panharmonium Spectral Processing Engine
@@ -48,6 +49,9 @@ private:
     static constexpr int hopSize = fftSize / overlap;       // 256 samples
     static constexpr float windowCorrection = 2.0f / 3.0f;  // Hann^2 with 75% overlap
 
+    // Panharmonium spectral resynthesis constants
+    static constexpr int maxSpectralPeaks = 33;             // Rossum Panharmonium: 33 oscillators
+
     //==========================================================================
     // Core FFT objects
     std::unique_ptr<juce::dsp::FFT> fft;
@@ -66,6 +70,10 @@ private:
     std::array<float, numBins> prevMagnitude;      // For BLUR (EMA smoothing)
     std::array<float, numBins> prevPhase;          // For WARP (phase vocoder)
     std::array<float, numBins> feedbackMagnitude;  // For FEEDBACK
+
+    // Spectral peak extraction (Phase 1: Panharmonium resynthesis)
+    // SOURCE: audiodev.blog FFT tutorial + DSPRelated peak detection
+    std::vector<SpectralPeak> currentPeaks;        // Extracted peaks from current frame
 
     //==========================================================================
     // Output effects (juce::dsp patterns)
