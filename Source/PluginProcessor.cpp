@@ -142,7 +142,11 @@ void PanharmoniumAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         // Apply parameters to engines
         for (auto& engine : engines)
         {
-            engine.setTime(time);
+            // PHASE 4: Updated to new parameter names
+            engine.setSlice(time);         // TIME → SLICE (FFT window size)
+            engine.setVoice(voices);       // VOICES → VOICE (active oscillators)
+            // TODO: Add FREEZE parameter once parameter tree is updated
+
             engine.setBlur(blur);
             engine.setResonance(resonance);
             engine.setWarp(warp);
@@ -150,7 +154,6 @@ void PanharmoniumAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             engine.setMix(mix);
             engine.setColour(colour);
             engine.setFloat(floatParam);
-            engine.setVoices(voices);
         }
 
         // Process stereo channels

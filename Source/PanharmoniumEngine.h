@@ -30,48 +30,58 @@ public:
     float processSample(float inputSample);
 
     /** Parameter setters (0.0 to 1.0 range) */
-    void setTime(float value);          // FFT window size control
+    void setSlice(float value);         // PHASE 4: FFT window size (17ms - 6400ms)
+    void setVoice(float value);         // PHASE 4: Active oscillator count (1-33)
+    void setFreeze(float value);        // PHASE 4: Spectral freeze on/off
     void setBlur(float value);          // Spectral smoothing (EMA alpha)
-    void setResonance(float value);     // Spectral filter Q/Gain
+    void setResonance(float value);     // Spectral filter Q/Gain (to be removed)
     void setWarp(float value);          // Phase vocoder warp factor
     void setFeedback(float value);      // Spectral feedback gain
     void setMix(float value);           // Dry/Wet blend
     void setColour(float value);        // Tilt EQ balance
     void setFloat(float value);         // Reverb decay time
-    void setVoices(float value);        // Placeholder (bypass gain)
 
     int getLatencyInSamples() const { return fftSize; }
 
 private:
-    // FFT configuration constants (based on audiodev.blog pattern)
-    static constexpr int fftOrder = 10;                     // 2^10 = 1024
-    static constexpr int fftSize = 1 << fftOrder;           // 1024 samples
-    static constexpr int numBins = fftSize / 2 + 1;         // 513 bins
-    static constexpr int overlap = 4;                       // 75% overlap
-    static constexpr int hopSize = fftSize / overlap;       // 256 samples
+    // PHASE 4: Dynamic FFT configuration (SLICE parameter)
+    // SOURCE: JUCE forum (forum.juce.com/t/29348) - IvanC: "Use unique_ptr and reset to change size"
+    // SOURCE: JUCE dsp::Convolution - thread-safe FFT size changing pattern
+    int fftOrder = 10;                                      // 2^10 = 1024 (default)
+    int fftSize = 1 << fftOrder;                            // 1024 samples (updated dynamically)
+    int numBins = fftSize / 2 + 1;                          // 513 bins (updated dynamically)
+    static constexpr int overlap = 4;                       // 75% overlap (constant)
+    int hopSize = fftSize / overlap;                        // 256 samples (updated dynamically)
     static constexpr float windowCorrection = 2.0f / 3.0f;  // Hann^2 with 75% overlap
 
     // Panharmonium spectral resynthesis constants
     static constexpr int maxSpectralPeaks = 33;             // Rossum Panharmonium: 33 oscillators
+
+    // PHASE 4: SLICE parameter range (Rossum Panharmonium specification)
+    // SOURCE: Rossum Panharmonium manual - 17ms to 6400ms window sizes
+    static constexpr float MIN_SLICE_MS = 17.0f;
+    static constexpr float MAX_SLICE_MS = 6400.0f;
 
     //==========================================================================
     // Core FFT objects
     std::unique_ptr<juce::dsp::FFT> fft;
     std::unique_ptr<juce::dsp::WindowingFunction<float>> window;
 
+    // PHASE 4: Dynamic buffers for variable FFT size (SLICE parameter)
+    // SOURCE: JUCE forum pattern - use std::vector for runtime-resizable buffers
     // Circular FIFOs for overlap-add (audiodev.blog pattern)
-    std::array<float, fftSize> inputFifo;
-    std::array<float, fftSize> outputFifo;
-    std::array<float, fftSize * 2> fftData;  // Interleaved complex numbers
+    std::vector<float> inputFifo;
+    std::vector<float> outputFifo;
+    std::vector<float> fftData;  // Interleaved complex numbers
 
     int fifoPos = 0;    // Current position in circular buffer
     int hopCount = 0;   // Counter for hop size
 
     //==========================================================================
-    // Spectral processing state
-    std::array<float, numBins> prevMagnitude;      // For BLUR (EMA smoothing)
-    std::array<float, numBins> prevPhase;          // For WARP (phase vocoder)
-    std::array<float, numBins> feedbackMagnitude;  // For FEEDBACK
+    // Spectral processing state (dynamic for variable FFT size)
+    std::vector<float> prevMagnitude;      // For BLUR (EMA smoothing)
+    std::vector<float> prevPhase;          // For WARP (phase vocoder)
+    std::vector<float> feedbackMagnitude;  // For FEEDBACK
 
     // Spectral peak extraction (Phase 1: Panharmonium resynthesis)
     // SOURCE: audiodev.blog FFT tutorial + DSPRelated peak detection
@@ -91,21 +101,24 @@ private:
     juce::dsp::IIR::Filter<float> lowShelf;
     juce::dsp::IIR::Filter<float> highShelf;
 
-    // Dry buffer for mix
-    std::array<float, fftSize> dryBuffer;
+    // Dry buffer for mix (dynamic for variable FFT size)
+    std::vector<float> dryBuffer;
     int dryBufferPos = 0;
 
     //==========================================================================
     // Parameters (atomic for thread-safe parameter changes)
-    std::atomic<float> currentTime{0.5f};
+    // PHASE 4: Core Panharmonium parameters
+    std::atomic<float> currentSlice{0.1f};         // FFT window size (17ms - 6400ms, log scale)
+    std::atomic<float> currentVoice{1.0f};         // Active oscillator count (1-33)
+    std::atomic<float> currentFreeze{0.0f};        // Spectral freeze (0=off, 1=on)
+
     std::atomic<float> currentBlur{0.0f};
-    std::atomic<float> currentResonance{0.0f};
+    std::atomic<float> currentResonance{0.0f};     // To be removed in Phase 8
     std::atomic<float> currentWarp{0.5f};          // 0.5 = no warp
     std::atomic<float> currentFeedback{0.0f};
     std::atomic<float> currentMix{0.5f};
     std::atomic<float> currentColour{0.5f};        // 0.5 = flat
     std::atomic<float> currentFloat{0.0f};
-    std::atomic<float> currentVoices{0.5f};        // Placeholder
 
     double sampleRate = 44100.0;
 
@@ -119,6 +132,10 @@ private:
     void processFrame();
     void spectralManipulation(float* fftDataBuffer);
     void applyOutputEffects(float& sample);
+
+    // PHASE 4: Dynamic FFT size management (SLICE parameter)
+    // SOURCE: JUCE dsp::Convolution pattern - thread-safe FFT reset
+    void updateFFTSize(int newOrder);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PanharmoniumEngine)
 };

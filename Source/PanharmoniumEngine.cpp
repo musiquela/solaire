@@ -14,14 +14,9 @@ void PanharmoniumEngine::prepareToPlay(double newSampleRate, int samplesPerBlock
 
     sampleRate = newSampleRate;
 
-    // Initialize FFT and window (audiodev.blog pattern)
-    // Window is fftSize + 1 to make it periodic (not symmetric)
-    fft = std::make_unique<juce::dsp::FFT>(fftOrder);
-    window = std::make_unique<juce::dsp::WindowingFunction<float>>(
-        fftSize + 1,
-        juce::dsp::WindowingFunction<float>::hann,
-        false  // normalise = false (we apply our own correction)
-    );
+    // PHASE 4: Initialize dynamic FFT size (default 1024)
+    // SOURCE: JUCE dsp::Convolution pattern - initialize FFT in prepareToPlay
+    updateFFTSize(fftOrder);
 
     // Prepare output effects and oscillator bank (juce::dsp pattern)
     juce::dsp::ProcessSpec spec;
@@ -50,6 +45,42 @@ void PanharmoniumEngine::releaseResources()
 {
     const juce::SpinLock::ScopedLockType lock(processingLock);
     // Resources released via unique_ptr destructors
+}
+
+void PanharmoniumEngine::updateFFTSize(int newOrder)
+{
+    // PHASE 4: Dynamic FFT size update (SLICE parameter)
+    // SOURCE: JUCE dsp::Convolution pattern - reset unique_ptr to change FFT size
+    // SOURCE: JUCE forum (forum.juce.com/t/29348) - IvanC: thread-safe FFT reset
+    // NOTE: Must be called with processingLock held!
+
+    fftOrder = newOrder;
+    fftSize = 1 << fftOrder;
+    numBins = fftSize / 2 + 1;
+    hopSize = fftSize / overlap;
+
+    // Reset FFT and window (JUCE dsp::Convolution pattern)
+    // Window is fftSize + 1 to make it periodic (not symmetric)
+    fft = std::make_unique<juce::dsp::FFT>(fftOrder);
+    window = std::make_unique<juce::dsp::WindowingFunction<float>>(
+        fftSize + 1,
+        juce::dsp::WindowingFunction<float>::hann,
+        false  // normalise = false (we apply our own correction)
+    );
+
+    // Resize all dynamic buffers (std::vector pattern)
+    inputFifo.resize(fftSize, 0.0f);
+    outputFifo.resize(fftSize, 0.0f);
+    fftData.resize(fftSize * 2, 0.0f);  // Interleaved complex
+    prevMagnitude.resize(numBins, 0.0f);
+    prevPhase.resize(numBins, 0.0f);
+    feedbackMagnitude.resize(numBins, 0.0f);
+    dryBuffer.resize(fftSize, 0.0f);
+
+    // Reset positions
+    fifoPos = 0;
+    hopCount = 0;
+    dryBufferPos = 0;
 }
 
 void PanharmoniumEngine::reset()
@@ -131,32 +162,46 @@ void PanharmoniumEngine::processFrame()
     // SPECTRAL ANALYSIS (Phase 1-2: peak extraction & tracking)
     spectralManipulation(fftPtr);
 
-    // Phase 3: Update oscillator bank from tracked partials
+    // Phase 3 & 4: Update oscillator bank from tracked partials
     // SOURCE: Custom logic using JUCE patterns
     // Replaces IFFT reconstruction - oscillators generate audio directly
     const auto& activeTracks = partialTracker.getActiveTracks();
-    oscillatorBank.updateFromPartials(activeTracks);
+
+    // PHASE 4: VOICE parameter - limit active oscillators
+    // SOURCE: Simple loop control (standard C++ pattern)
+    const float voiceParam = currentVoice.load();
+    const int maxVoices = static_cast<int>(voiceParam * 32.0f) + 1;  // 1-33 range
+    oscillatorBank.updateFromPartials(activeTracks, maxVoices);
 
     // NOTE: IFFT and overlap-add removed - now using oscillator bank synthesis
 }
 
 void PanharmoniumEngine::spectralManipulation(float* fftDataBuffer)
 {
-    // PHASE 1: Extract dominant spectral peaks (Panharmonium resynthesis)
-    // SOURCE: audiodev.blog FFT tutorial + DSPRelated quadratic interpolation
-    // Extract 33 dominant peaks for oscillator bank resynthesis
-    currentPeaks = extractDominantPeaks(
-        fftDataBuffer,
-        numBins,
-        maxSpectralPeaks,
-        sampleRate,
-        fftSize
-    );
+    // PHASE 4: FREEZE parameter - gate spectral analysis
+    // SOURCE: Simple boolean gate pattern (standard DSP technique)
+    const float freeze = currentFreeze.load();
+    const bool isFrozen = (freeze > 0.5f);
 
-    // PHASE 2: Track peaks across frames (Panharmonium resynthesis)
-    // SOURCE: McAulay-Quatieri algorithm - maintain peak identity over time
-    // Enables stable oscillator frequency/amplitude trajectories
-    partialTracker.processFrame(currentPeaks);
+    if (!isFrozen)
+    {
+        // PHASE 1: Extract dominant spectral peaks (Panharmonium resynthesis)
+        // SOURCE: audiodev.blog FFT tutorial + DSPRelated quadratic interpolation
+        // Extract 33 dominant peaks for oscillator bank resynthesis
+        currentPeaks = extractDominantPeaks(
+            fftDataBuffer,
+            numBins,
+            maxSpectralPeaks,
+            sampleRate,
+            fftSize
+        );
+
+        // PHASE 2: Track peaks across frames (Panharmonium resynthesis)
+        // SOURCE: McAulay-Quatieri algorithm - maintain peak identity over time
+        // Enables stable oscillator frequency/amplitude trajectories
+        partialTracker.processFrame(currentPeaks);
+    }
+    // When frozen, partials keep their last tracked values (oscillators continue)
 
     // NOTE: Spectral effects (BLUR, FEEDBACK, WARP) will be implemented in Phase 5
     // They will modify the partial tracks before oscillator bank synthesis
@@ -207,11 +252,32 @@ void PanharmoniumEngine::applyOutputEffects(float& sample)
 //==============================================================================
 // Parameter setters
 
-void PanharmoniumEngine::setTime(float value)
+// PHASE 4: Core Panharmonium parameters
+void PanharmoniumEngine::setSlice(float value)
 {
-    currentTime.store(juce::jlimit(0.0f, 1.0f, value));
-    // Note: TIME changes FFT size, would require full reinitialization
-    // For simplicity, this demo uses fixed fftSize
+    // SOURCE: Rossum Panharmonium - logarithmic SLICE control (17ms - 6400ms)
+    // Convert 0-1 to logarithmic FFT size range
+    value = juce::jlimit(0.0f, 1.0f, value);
+    currentSlice.store(value);
+
+    // Convert to milliseconds logarithmically
+    // SOURCE: Standard logarithmic pot scaling (audiodev.blog)
+    const float sliceMs = MIN_SLICE_MS * std::pow(MAX_SLICE_MS / MIN_SLICE_MS, value);
+
+    // Convert milliseconds to samples
+    const float sliceSamples = (sliceMs / 1000.0f) * static_cast<float>(sampleRate);
+
+    // Find nearest power of 2 for FFT order
+    // SOURCE: JUCE FFT requirements - size must be power of 2
+    int newOrder = static_cast<int>(std::round(std::log2(sliceSamples)));
+    newOrder = juce::jlimit(7, 14, newOrder);  // 128 to 16384 samples
+
+    // Update FFT size if changed (thread-safe with SpinLock)
+    if (newOrder != fftOrder)
+    {
+        const juce::SpinLock::ScopedLockType lock(processingLock);
+        updateFFTSize(newOrder);
+    }
 }
 
 void PanharmoniumEngine::setBlur(float value)
@@ -249,8 +315,16 @@ void PanharmoniumEngine::setFloat(float value)
     currentFloat.store(juce::jlimit(0.0f, 1.0f, value));
 }
 
-void PanharmoniumEngine::setVoices(float value)
+void PanharmoniumEngine::setVoice(float value)
 {
-    currentVoices.store(juce::jlimit(0.0f, 1.0f, value));
-    // Placeholder - could control polyphonic processing
+    // PHASE 4: VOICE parameter (1-33 active oscillators)
+    // SOURCE: Simple atomic store (standard C++ pattern)
+    currentVoice.store(juce::jlimit(0.0f, 1.0f, value));
+}
+
+void PanharmoniumEngine::setFreeze(float value)
+{
+    // PHASE 4: FREEZE parameter (spectral freeze on/off)
+    // SOURCE: Boolean gate pattern (standard DSP technique)
+    currentFreeze.store(juce::jlimit(0.0f, 1.0f, value));
 }

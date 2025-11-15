@@ -151,12 +151,17 @@ public:
      *
      * SOURCE: Custom logic using JUCE patterns
      * Maps each partial track to a corresponding oscillator voice
+     * PHASE 4: Added maxVoices parameter for VOICE control
      */
-    void updateFromPartials(const std::vector<PartialTrack>& partials)
+    void updateFromPartials(const std::vector<PartialTrack>& partials, int maxVoices = NUM_VOICES)
     {
-        // First pass: Update active partials
+        // Clamp maxVoices to valid range
+        // SOURCE: Standard C++ clamping pattern
+        maxVoices = std::max(1, std::min(maxVoices, NUM_VOICES));
+
+        // First pass: Update active partials (up to maxVoices limit)
         // SOURCE: JUCE forum - oscillator update pattern
-        size_t numPartials = std::min(partials.size(), static_cast<size_t>(NUM_VOICES));
+        size_t numPartials = std::min(partials.size(), static_cast<size_t>(maxVoices));
 
         for (size_t i = 0; i < numPartials; ++i)
         {
