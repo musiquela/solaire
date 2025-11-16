@@ -319,8 +319,10 @@ void SolaireEngine::applyOutputEffects(float& sample)
     const float floatParam = currentFloat.load();
     const float mix = currentMix.load();
 
-    // Get dry sample for mix
-    float drySample = dryBuffer[(dryBufferPos + fftSize - getLatencyInSamples()) % fftSize];
+    // Get dry sample for mix - read the sample we just wrote before incrementing
+    // SOURCE: JUCE DelayLine pattern (juce_DelayLine.cpp:117-120)
+    // We write to buffer[pos] then increment pos, so to read current sample: (pos - 1)
+    float drySample = dryBuffer[(dryBufferPos - 1 + fftSize) % fftSize];
 
     // COLOR: Tilt EQ using complementary low/high shelves
     // Verification: First-order shelving filters with complementary gains

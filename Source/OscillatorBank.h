@@ -103,10 +103,11 @@ public:
         // SOURCE: JUCE DSP pattern - reset oscillator state
         oscillator.reset();
 
-        // Reset smoothed values to current target
-        // SOURCE: JUCE SmoothedValue - skip() sets current without ramping
-        frequencySmooth.skip(frequencySmooth.getTargetValue());
-        amplitudeSmooth.skip(amplitudeSmooth.getTargetValue());
+        // Reset smoothed values to target value immediately
+        // SOURCE: JUCE SmoothedValue.h - setCurrentAndTargetValue() for immediate set
+        // BUG FIX: skip() takes int numSamples, not float value!
+        frequencySmooth.setCurrentAndTargetValue(frequencySmooth.getTargetValue());
+        amplitudeSmooth.setCurrentAndTargetValue(amplitudeSmooth.getTargetValue());
     }
 
     void updateFromPartial(const PartialTrack& partial)
